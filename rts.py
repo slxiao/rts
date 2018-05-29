@@ -3,14 +3,18 @@ import re
 from robot.api import ExecutionResult, ResultVisitor
 import sys
 
+SUPPORT_FILE_TYPES = ["robot", "py"]
+
 class FileDependencyVisitor(ResultVisitor):
     def __init__(self):
         self.dependency = {}
 
     def visit_suite(self, suite):
         suites = self.get_suites(suite)
+        suites.remove(suite)
         for suite in suites:
             self.dependency[suite.name] = self.get_invoked_libraries(suite)
+            self.dependency[suite.name].append(suite.name.replace(" ", "_"))
 
     def get_suites(self, suite):
         res = [suite]
@@ -44,11 +48,19 @@ class RTS(object):
     def run(self, cmd):
         self.dryrun(cmd)
         output = self._get_output_path(cmd)
+        print "compute dependency mapping."
         dependency = self.get_dependency(output)
-        changes = self.get_changed_files()
-        affected = self.get_affected_suites(dependency, changes)
-        cmd = self.get_updated_cmd(cmd, affected)
-        subprocess.check_output(cmd, shell=True)
+        print "compute changed files."
+        supported, changes = self.get_changed_files()
+        if supported:
+            print "compute affected test suites."
+            affected = self.get_affected_suites(dependency, changes)
+            cmd = self.get_updated_cmd(cmd, affected)
+            print "run selected tests: %s" % cmd
+            subprocess.check_output(cmd, shell=True)
+        else:
+            print "no selection, run tests: %s" % cmd
+            subprocess.check_output(cmd, shell=True)
 
     def get_updated_cmd(self, cmd, suites):
         origin_suites = re.findall("-s\s\S*", cmd)
@@ -56,15 +68,16 @@ class RTS(object):
             cmd = cmd.replace(s, "")
         append = ""
         for s in suites:
-            append += "-s '%s'" % s
-        return cmd[0:6] + append + cmd[6:]
+            append += " -s '%s' " % s
+        return re.sub(' +',' ', cmd[0:6] + append + cmd[6:])
 
     def dryrun(self, cmd):
         cmd = cmd[0:6] + "--dryrun " + cmd[6:]
+        print "begin dryrun, cmd: %s" % cmd
         try:
             subprocess.check_output(cmd, shell=True)
         except:
-            raise RuntimeError("Dryrun failed, please check test cases!")
+            raise RuntimeError("dryrun failed, please check test cases!")
 
     def _get_output_path(self, cmd):
         directory = re.search("-d\s\S*", cmd)
@@ -88,15 +101,16 @@ class RTS(object):
     def get_changed_files(self, cmd="git diff HEAD HEAD~ --name-only"):
         result = subprocess.check_output(cmd, shell=True)
         result = result.strip().split('\n')
-        return [name.split('/')[-1].split(".")[0] for name in result if name.startswith('test/ET')]
+        for f in result:
+            if f.split(".")[-1] not in SUPPORT_FILE_TYPES:
+                return False, None
+        return True, [f.split('/')[-1].split(".")[0] for f in result]
 
     def get_affected_suites(self, dependency, changes):
-        res = {}
+        res = []
         for suite in dependency:
             if set(dependency[suite]).intersection(changes):
-                res[suite] = True
-            else:
-                res[suite] = False
+                res.append(suite)
         return res
 
 if __name__ == "__main__":

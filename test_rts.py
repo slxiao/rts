@@ -23,15 +23,15 @@ class TestRTS(unittest.TestCase):
     def test_get_affected_suites(self):
         dependency = {"ET":["NbsLibrary", "common_lib"]}
         changes = ["common_lib"]
-        self.assertEqual(self.rts.get_affected_suites(dependency, changes), {"ET":True})
+        self.assertEqual(self.rts.get_affected_suites(dependency, changes), ["ET"])
         dependency = {"ET":["NbsLibrary", "common_lib2"]}
         changes = ["common_lib"]
-        self.assertEqual(se lf.rts.get_affected_suites(dependency, changes), {"ET":False})
+        self.assertEqual(self.rts.get_affected_suites(dependency, changes), [])
 
     def test_get_updated_cmd(self):
         cmd = "pybot -s 'FM' -s 'CM' ."
         suites = ["FM_2"]
-        self.assertEqual(self.rts.get_updated_cmd(cmd, suites), "pybot -s 'FM_2'  .")
+        self.assertEqual(self.rts.get_updated_cmd(cmd, suites), "pybot -s 'FM_2' .")
 
 if __name__ == '__main__':
     unittest.main()
