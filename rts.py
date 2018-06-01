@@ -45,24 +45,25 @@ class FileDependencyVisitor(ResultVisitor):
         return res
 
 class RTS(object):
-    def run(self, cmd):
+    def select(self, cmd):
         self.dryrun(cmd)
         output = self._get_output_path(cmd)
         print "compute dependency mapping."
         dependency = self.get_dependency(output)
-        print "compute changed files."
         supported, changes = self.get_changed_files()
-        if supported:
-            print "compute affected test suites."
-            affected = self.get_affected_suites(dependency, changes)
-            cmd = self.get_updated_cmd(cmd, affected)
-            print "run selected tests: %s" % cmd
-            subprocess.check_output(cmd, shell=True)
-        else:
-            print "no selection, run tests: %s" % cmd
-            subprocess.check_output(cmd, shell=True)
+        print "compute changed files: %s." % str(changes)
+        if not supported:
+            print "no supported changes, no selection, return raw command."
+            return [], cmd
+        print "compute selected test suites."
+        selected_suites = self.get_selected_suites(dependency, changes)
+        cmd = self.get_updated_cmd(cmd, selected_suites)
+        print "selected suites are %s, updated command is %s" % (str(selected_suites), cmd)
+        return selected_suites, cmd
 
     def get_updated_cmd(self, cmd, suites):
+        if not suites:
+            return cmd
         origin_suites = re.findall("-s\s\S*", cmd)
         for s in origin_suites:
             cmd = cmd.replace(s, "")
@@ -72,12 +73,11 @@ class RTS(object):
         return re.sub(' +',' ', cmd[0:6] + append + cmd[6:])
 
     def dryrun(self, cmd):
-        cmd = cmd[0:6] + "--dryrun " + cmd[6:]
-        print "begin dryrun, cmd: %s" % cmd
-        try:
-            subprocess.check_output(cmd, shell=True)
-        except:
-            raise RuntimeError("dryrun failed, please check test cases!")
+        cmd = [cmd[0:6] + "--dryrun " + cmd[6:]]
+        p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        out, err = p.communicate()
+        if out:
+            print out
 
     def _get_output_path(self, cmd):
         directory = re.search("-d\s\S*", cmd)
@@ -106,7 +106,7 @@ class RTS(object):
                 return False, None
         return True, [f.split('/')[-1].split(".")[0] for f in result]
 
-    def get_affected_suites(self, dependency, changes):
+    def get_selected_suites(self, dependency, changes):
         res = []
         for suite in dependency:
             if set(dependency[suite]).intersection(changes):
@@ -115,4 +115,4 @@ class RTS(object):
 
 if __name__ == "__main__":
     rts = RTS()
-    rts.run(sys.argv[1])
+    rts.select(sys.argv[1])

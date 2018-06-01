@@ -20,13 +20,13 @@ class TestRTS(unittest.TestCase):
         output = './testdata/output.xml'
         self.assertNotEqual(self.rts.get_dependency(output), {})
 
-    def test_get_affected_suites(self):
+    def test_get_selected_suites(self):
         dependency = {"ET":["NbsLibrary", "common_lib"]}
         changes = ["common_lib"]
-        self.assertEqual(self.rts.get_affected_suites(dependency, changes), ["ET"])
+        self.assertEqual(self.rts.get_selected_suites(dependency, changes), ["ET"])
         dependency = {"ET":["NbsLibrary", "common_lib2"]}
         changes = ["common_lib"]
-        self.assertEqual(self.rts.get_affected_suites(dependency, changes), [])
+        self.assertEqual(self.rts.get_selected_suites(dependency, changes), [])
 
     def test_get_updated_cmd(self):
         cmd = "pybot -s 'FM' -s 'CM' ."
