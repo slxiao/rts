@@ -45,74 +45,59 @@ class FileDependencyVisitor(ResultVisitor):
         return res
 
 class RTS(object):
-    def select(self, cmd):
-        self.dryrun(cmd)
-        output = self._get_output_path(cmd)
-        print "compute dependency mapping."
-        dependency = self.get_dependency(output)
-        supported, changes = self.get_changed_files()
-        print "compute changed files: %s." % str(changes)
-        if not supported:
-            print "no supported changes, no selection, return raw command."
-            return [], cmd
-        print "compute selected test suites."
-        selected_suites = self.get_selected_suites(dependency, changes)
-        cmd = self.get_updated_cmd(cmd, selected_suites)
-        print "selected suites are %s, updated command is %s" % (str(selected_suites), cmd)
-        return selected_suites, cmd
+    def __init__(self, root, suites):
+        self.root = root
+        self.suites = suites
+        self.dependency = {}
+        print "suite path: %s, suites: %s." % (root, str(suites))
 
-    def get_updated_cmd(self, cmd, suites):
-        if not suites:
-            return cmd
-        origin_suites = re.findall("-s\s\S*", cmd)
-        for s in origin_suites:
-            cmd = cmd.replace(s, "")
-        append = ""
-        for s in suites:
-            append += " -s '%s' " % s
-        return re.sub(' +',' ', cmd[0:6] + append + cmd[6:])
+    def select(self, changes):
+        print "file changes: %s." % changes
+        self.dryrun()
+        print "precheck changes."
+        if not self.precheck_changes(changes):
+            print "unsupported file changes, no selection."
+            return self.suites
+        print "compute dependency mappings."
+        self.generate_dependency()
+        print "select suites based on dependency."
+        return self.select_suites(changes)
 
-    def dryrun(self, cmd):
-        cmd = [cmd[0:6] + "--dryrun " + cmd[6:]]
+    def precheck_changes(self, changes):
+        for change in changes:
+            if not change.startswith(root) or change.split(".")[-1] not in SUPPORT_FILE_TYPES:
+                return False
+        return True
+
+    def dryrun(self):
+        cmd = self.get_dryrun_cmd()
+        print cmd
         p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         out, err = p.communicate()
         if out:
             print out
 
-    def _get_output_path(self, cmd):
-        directory = re.search("-d\s\S*", cmd)
-        name = re.search("-o\s\S*", cmd)
-        if directory:
-            directory = directory.group(0).split(" ")[-1]
-        else:
-            directory = '.'
-        if name:
-            name = name.group(0).split(" ")[-1]
-        else:
-            name = "output.xml"
-        return directory + '/' + name
+    def get_dryrun_cmd(self):
+        return "cd %s && pybot --dryrun " % self.root + " ".join([ "-s "+s for s in self.suites]) + " ."
 
-    def get_dependency(self, output):
+    def generate_dependency(self):
+        output = self.root + "/output.xml"
         result = ExecutionResult(output)
         visitor = FileDependencyVisitor()
         result.visit(visitor)
-        return visitor.dependency
+        self.dependency = visitor.dependency
 
-    def get_changed_files(self, cmd="git diff HEAD HEAD~ --name-only"):
-        result = subprocess.check_output(cmd, shell=True)
-        result = result.strip().split('\n')
-        for f in result:
-            if f.split(".")[-1] not in SUPPORT_FILE_TYPES:
-                return False, None
-        return True, [f.split('/')[-1].split(".")[0] for f in result]
-
-    def get_selected_suites(self, dependency, changes):
-        res = []
-        for suite in dependency:
-            if set(dependency[suite]).intersection(changes):
-                res.append(suite)
-        return res
+    def select_suites(self, changes):
+        selected = []
+        changes = [x.split("/")[-1].split(".")[0] for x in changes]
+        for suite in self.dependency:
+            if set(self.dependency[suite]).intersection(changes):
+                selected.append(suite)
+        return selected
 
 if __name__ == "__main__":
-    rts = RTS()
-    rts.select(sys.argv[1])
+    print sys.argv
+    root = sys.argv[1]
+    suites = eval(sys.argv[2])
+    changes = eval(sys.argv[3])
+    print RTS(root, suites).select(changes)
