@@ -10,7 +10,7 @@ First way is in Python, where you can:
 ```python
 from rts import RTS
 
-print RTS("/home/robot", ["suite1", "suite2"]).select(["/home/robot/x.robot", "/home/robot/y.py"])
+print RTS(".", ".", ["suite1", "suite2"]).select(["x.robot", "y.py"])
 
 ```
 Example output might be
@@ -19,7 +19,7 @@ Example output might be
 ```
 Second way is in Shell, where you can:
 ```shell
-python rts.py /home/robot '["suite1", "suite1"]' '["/home/robot/x.py", "/home/robot/y.py"]'
+python rts.py . . '["suite1", "suite1"]' '["x.robot", "y.py"]'
 
 ```
 Example output is same as above.

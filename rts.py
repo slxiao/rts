@@ -5,6 +5,9 @@ import sys
 
 SUPPORT_FILE_TYPES = ["robot", "py"]
 
+def get_changed_files(cmd="git diff HEAD HEAD~ --name-only"):
+    return subprocess.check_output(cmd, shell=True).strip().split('\n')
+
 class FileDependencyVisitor(ResultVisitor):
     def __init__(self):
         self.dependency = {}
@@ -45,19 +48,20 @@ class FileDependencyVisitor(ResultVisitor):
         return res
 
 class RTS(object):
-    def __init__(self, root, suites):
+    def __init__(self, root, directory, suites):
         self.root = root
+        self.directory = directory
         self.suites = suites
         self.dependency = {}
         print "suite path: %s, suites: %s." % (root, str(suites))
 
     def select(self, changes):
         print "file changes: %s." % changes
-        self.dryrun()
         print "precheck changes."
         if not self.precheck_changes(changes):
             print "unsupported file changes, no selection."
             return self.suites
+        self.dryrun()
         print "compute dependency mappings."
         self.generate_dependency()
         print "select suites based on dependency."
@@ -65,7 +69,7 @@ class RTS(object):
 
     def precheck_changes(self, changes):
         for change in changes:
-            if not change.startswith(root) or change.split(".")[-1] not in SUPPORT_FILE_TYPES:
+            if not change.startswith(self.root) or change.split(".")[-1] not in SUPPORT_FILE_TYPES:
                 return False
         return True
 
@@ -78,10 +82,11 @@ class RTS(object):
             print out
 
     def get_dryrun_cmd(self):
-        return "cd %s && pybot --dryrun " % self.root + " ".join([ "-s "+s for s in self.suites]) + " ."
+        suites=["'%s'" % s for s in self.suites]
+        return "pybot --dryrun " + " ".join([ "-s "+s for s in suites]) + " %s" % self.directory
 
     def generate_dependency(self):
-        output = self.root + "/output.xml"
+        output = "./output.xml"
         result = ExecutionResult(output)
         visitor = FileDependencyVisitor()
         result.visit(visitor)
@@ -98,6 +103,7 @@ class RTS(object):
 if __name__ == "__main__":
     print sys.argv
     root = sys.argv[1]
-    suites = eval(sys.argv[2])
-    changes = eval(sys.argv[3])
-    print RTS(root, suites).select(changes)
+    directory = sys.argv[2]
+    suites = eval(sys.argv[3])
+    changes = eval(sys.argv[4])
+    print RTS(root, directory, suites).select(changes)
