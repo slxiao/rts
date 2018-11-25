@@ -33,4 +33,3 @@ Note:
 
 # Support
 **rts** is developed and maintained by [slxiao](https://github.com/slxiao). Refer to [gitlab issues](https://github.com/slxiao/rts/issues) if you meet any bugs or need feature enhancements.
-
